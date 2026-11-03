@@ -270,24 +270,39 @@ jobs:
       - name: Package unsigned IPA
         run: |
           set -o pipefail
-          APP_PATH=$(find "$PWD/build/Trio.xcarchive/Products/Applications" -maxdepth 1 -name '*.app' | head -n1)
+          # NOTE: keep everything relative to the workspace root ($PWD). Do NOT
+          # `cd` into build/, otherwise the artifacts/ dir we create ends up under
+          # build/artifacts and the upload-artifact `path: artifacts` (resolved
+          # from the workspace root) won't find the IPA.
+          ARCHIVE_APP_DIR="$PWD/build/Trio.xcarchive/Products/Applications"
+          echo "== xcarchive Applications =="
+          ls -la "$ARCHIVE_APP_DIR" || true
+
+          APP_PATH=$(find "$ARCHIVE_APP_DIR" -maxdepth 1 -name '*.app' | head -n1)
           if [ -z "$APP_PATH" ]; then
             echo "::error::No .app bundle found inside the archive — build likely failed (see buildlog/Trio-build.log)."
+            echo "== archive tree (top 40) =="
+            find "$PWD/build/Trio.xcarchive" -maxdepth 4 | head -n 40 || true
             exit 1
           fi
           echo "Found app bundle: $APP_PATH"
 
-          rm -rf "$PWD/build/Payload"
-          mkdir -p "$PWD/build/Payload"
-          cp -R "$APP_PATH" "$PWD/build/Payload/"
+          rm -rf "$PWD/Payload"
+          mkdir -p "$PWD/Payload"
+          cp -R "$APP_PATH" "$PWD/Payload/"
 
-          cd "$PWD/build"
           ZIP_NAME="Trio-unsigned-${{ github.ref_name }}.ipa"
+          rm -f "$ZIP_NAME"
           zip -r -q "$ZIP_NAME" Payload
-          echo "Created $ZIP_NAME"
+          rm -rf "$PWD/Payload"
 
           mkdir -p "$PWD/artifacts"
           mv "$ZIP_NAME" "$PWD/artifacts/"
+
+          echo "== produced file =="
+          ls -la "$PWD/artifacts"
+          file "$PWD/artifacts/$ZIP_NAME" || true
+          echo "::notice::Unsigned IPA: artifacts/$ZIP_NAME — re-sign with AltStore/Sideloadly before installing."
 
       # Upload Build artifacts (unsigned IPA + build log)
       - name: Upload build artifacts
