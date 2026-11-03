@@ -55,8 +55,10 @@ jobs:
 
           # Validate Access Token (GH_PAT)
           if [ -z "$GH_PAT" ]; then
-            failed=true
-            echo "::error::The GH_PAT secret is unset or empty. Set it and try again."
+            # For an UNSIGNED build, GH_PAT is optional: it is only required for
+            # upstream sync / token-scoped automations. Skip validation instead of
+            # failing so the build can run from the current branch without syncing.
+            echo "::warning::The GH_PAT secret is unset or empty — upstream sync is disabled. The build will run from the current branch without syncing."
           else
             if [[ $GH_PAT =~ $GH_PAT_CLASSIC_PATTERN ]]; then
               provides_scopes=true
@@ -199,7 +201,6 @@ jobs:
       - name: Checkout Repo for building
         uses: actions/checkout@v5
         with:
-          token: ${{ secrets.GH_PAT }}
           submodules: recursive
           ref: ${{ env.TARGET_BRANCH }}
 
